@@ -108,10 +108,7 @@ function formatMin(min) {
 }
 
 async function fetchStop(code) {
-  const res = await fetch(
-    `https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=${code}`,
-    { headers: { AccountKey: API_KEY, Accept: 'application/json' } }
-  );
+  const res = await fetch(`/api/bus?code=${code}`);  );
   const data = await res.json();
   return data.Services || [];
 }
