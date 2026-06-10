@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Bus Arrivals" />
+  <title>Bus Arrivals</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; }
+    .safe { max-width: 480px; margin: 0 auto; padding: 0 0 40px; }
+    .header { padding: 20px 16px 8px; }
+    .header h1 { font-size: 28px; font-weight: 600; color: #1a1a1a; }
+    .updated { font-size: 12px; color: #999; margin-top: 4px; }
+    .tabs { display: flex; margin: 8px 16px; background: #e8e8e8; border-radius: 10px; padding: 3px; }
+    .tab { flex: 1; padding: 8px; text-align: center; border-radius: 8px; font-size: 14px; font-weight: 500; color: #888; cursor: pointer; border: none; background: none; }
+    .tab.active { background: #fff; color: #1a73e8; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .search-row { display: flex; gap: 8px; padding: 8px 16px; }
+    .search-row input { flex: 1; padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; background: #fff; }
+    .search-row button { padding: 10px 18px; background: #1a73e8; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .section-title { font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 16px 4px; }
+    .stop-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 4px; }
+    .stop-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+    .stop-code { font-size: 12px; color: #999; }
+    .card { background: #fff; border-radius: 12px; margin: 0 16px 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .card-header { display: flex; align-items: center; margin-bottom: 10px; }
+    .route-badge { background: #1a73e8; color: #fff; font-weight: 700; font-size: 16px; padding: 4px 12px; border-radius: 8px; margin-right: 10px; }
+    .operator { font-size: 13px; color: #888; }
+    .my-bus-label { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+    .my-bus-stop { font-size: 12px; color: #999; margin-top: 2px; }
+    .arrivals { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill { background: #f0f0f0; border-radius: 8px; padding: 8px 14px; text-align: center; min-width: 64px; }
+    .pill.arriving { background: #e6f4ea; }
+    .pill-time { font-size: 18px; font-weight: 600; color: #1a1a1a; display: block; }
+    .pill.arriving .pill-time { color: #1e7e34; }
+    .pill-label { font-size: 11px; color: #888; display: block; margin-top: 2px; }
+    .no-data { font-size: 13px; color: #aaa; }
+    .error { color: #c0392b; text-align: center; padding: 16px; font-size: 14px; }
+    .loading { text-align: center; padding: 40px; color: #1a73e8; font-size: 14px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .pull-hint { text-align: center; font-size: 12px; color: #bbb; padding: 8px; }
+    .refresh-btn { display: block; margin: 8px auto; padding: 8px 20px; background: none; border: 1px solid #ddd; border-radius: 20px; font-size: 13px; color: #666; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div class="safe">
+  <div class="header">
+    <h1>🚌 Bus Arrivals</h1>
+    <div class="updated" id="updated"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('stops')">Bus Stops</button>
+    <button class="tab" onclick="switchTab('mybuses')">My Buses</button>
+  </div>
+
+  <div id="tab-stops" class="tab-content active">
+    <div class="search-row">
+      <input type="number" id="searchInput" placeholder="Search any bus stop code" maxlength="5" />
+      <button onclick="searchStop()">Search</button>
+    </div>
+    <div id="searchResults"></div>
+    <div class="section-title">My favourite stops</div>
+    <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    <div id="stopsContent"><div class="loading">Loading...</div></div>
+  </div>
+
+  <div id="tab-mybuses" class="tab-content">
+    <div class="section-title">My buses</div>
+    <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    <div id="mybusesContent"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<script>
+const API_KEY = 'yGlKh9z3TFeKg7zzBerzAQ==';
+
+const FAVOURITE_STOPS = [
+  { code: '50171', name: 'Zhong Shan Mall' },
+  { code: '50179', name: 'Opp Zhongshan Mall' },
+  { code: '52479', name: 'Opp EAIM' },
+  { code: '52179', name: 'TPY Blk 106' },
+];
+
+const MY_BUSES = [
+  { label: '208 to VIIO', busNo: '129', stopCode: '52179', stopName: 'TPY Blk 106' },
+  { label: 'VIIO to 208', busNo: '129', stopCode: '52479', stopName: 'Opp EAIM' },
+  { label: 'VIIO to TPY Bus Int', busNo: '139', stopCode: '52479', stopName: 'Opp EAIM' },
+  { label: 'Opp ZSM to Novena MRT', busNo: '21', stopCode: '50171', stopName: 'Zhong Shan Mall' },
+  { label: 'Opp ZSM to Novena MRT', busNo: '131', stopCode: '50171', stopName: 'Zhong Shan Mall' },
+];
+
+let stopData = {};
+
+function getMinutes(isoStr) {
+  if (!isoStr || isoStr === 'null' || isoStr === '0') return null;
+  const diff = (new Date(isoStr) - new Date()) / 1000 / 60;
+  return Math.round(diff);
+}
+
+function formatMin(min) {
+  if (min === null || isNaN(min)) return null;
+  if (min <= 1) return 'Arr';
+  return min + ' min';
+}
+
+async function fetchStop(code) {
+  const res = await fetch(
+    `https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=${code}`,
+    { headers: { AccountKey: API_KEY, Accept: 'application/json' } }
+  );
+  const data = await res.json();
+  return data.Services || [];
+}
+
+function renderArrivals(services) {
+  if (!services || !services.length) return '<span class="no-data">No buses operating</span>';
+  return services.map(svc => {
+    const arrivals = [svc.NextBus, svc.NextBus2, svc.NextBus3]
+      .map(b => b ? getMinutes(b.EstimatedArrival) : null)
+      .filter(m => m !== null && !isNaN(m));
+    const pills = arrivals.map((min, i) => `
+      <div class="pill ${min <= 1 ? 'arriving' : ''}">
+        <span class="pill-time">${formatMin(min)}</span>
+        <span class="pill-label">${i === 0 ? 'next' : i === 1 ? '2nd' : '3rd'}</span>
+      </div>`).join('');
+    return `
+      <div class="card">
+        <div class="card-header">
+          <span class="route-badge">${svc.ServiceNo}</span>
+          <span class="operator">${svc.Operator}</span>
+        </div>
+        <div class="arrivals">${pills || '<span class="no-data">No data</span>'}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderMyBus(busNo, stopCode, stopName) {
+  const services = stopData[stopCode] || [];
+  const svc = services.find(s => s.ServiceNo === busNo);
+  if (!svc) return '<span class="no-data">Not in service</span>';
+  const arrivals = [svc.NextBus, svc.NextBus2, svc.NextBus3]
+    .map(b => b ? getMinutes(b.EstimatedArrival) : null)
+    .filter(m => m !== null && !isNaN(m));
+  if (!arrivals.length) return '<span class="no-data">No data</span>';
+  return arrivals.map((min, i) => `
+    <div class="pill ${min <= 1 ? 'arriving' : ''}">
+      <span class="pill-time">${formatMin(min)}</span>
+      <span class="pill-label">${i === 0 ? 'next' : i === 1 ? '2nd' : '3rd'}</span>
+    </div>`).join('');
+}
+
+async function loadAll() {
+  try {
+    const allCodes = [...new Set([
+      ...FAVOURITE_STOPS.map(s => s.code),
+      ...MY_BUSES.map(b => b.stopCode)
+    ])];
+    const results = await Promise.all(allCodes.map(fetchStop));
+    allCodes.forEach((code, i) => { stopData[code] = results[i]; });
+
+    const now = new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('updated').textContent = 'Updated ' + now;
+
+    let stopsHtml = '';
+    FAVOURITE_STOPS.forEach(s => {
+      stopsHtml += `
+        <div class="stop-header">
+          <span class="stop-name">${s.name}</span>
+          <span class="stop-code">${s.code}</span>
+        </div>
+        ${renderArrivals(stopData[s.code])}`;
+    });
+    document.getElementById('stopsContent').innerHTML = stopsHtml;
+
+    let mybusHtml = '';
+    MY_BUSES.forEach(b => {
+      mybusHtml += `
+        <div class="card">
+          <div class="card-header">
+            <span class="route-badge">${b.busNo}</span>
+            <div style="margin-left:10px">
+              <div class="my-bus-label">${b.label}</div>
+              <div class="my-bus-stop">from ${b.stopName}</div>
+            </div>
+          </div>
+          <div class="arrivals">${renderMyBus(b.busNo, b.stopCode, b.stopName)}</div>
+        </div>`;
+    });
+    document.getElementById('mybusesContent').innerHTML = mybusHtml;
+  } catch(e) {
+    document.getElementById('stopsContent').innerHTML = '<div class="error">Could not load. Check your connection.</div>';
+  }
+}
+
+async function searchStop() {
+  const code = document.getElementById('searchInput').value.trim();
+  if (!code) return;
+  document.getElementById('searchResults').innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const services = await fetchStop(code);
+    if (!services.length) {
+      document.getElementById('searchResults').innerHTML = '<div class="error">No buses found.</div>';
+      return;
+    }
+    const tempData = { [code]: services };
+    const original = stopData;
+    stopData = { ...stopData, ...tempData };
+    document.getElementById('searchResults').innerHTML = `
+      <div class="stop-header">
+        <span class="stop-name">Stop ${code}</span>
+      </div>
+      ${renderArrivals(services)}`;
+    stopData = original;
+  } catch(e) {
+    document.getElementById('searchResults').innerHTML = '<div class="error">Could not fetch. Check connection.</div>';
+  }
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && tab === 'stops') || (i === 1 && tab === 'mybuses'));
+  });
+  document.getElementById('tab-stops').classList.toggle('active', tab === 'stops');
+  document.getElementById('tab-mybuses').classList.toggle('active', tab === 'mybuses');
+}
+
+loadAll();
+</script>
+</body>
+</html>
