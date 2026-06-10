@@ -41,7 +41,6 @@
     .loading { text-align: center; padding: 40px; color: #1a73e8; font-size: 14px; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    .pull-hint { text-align: center; font-size: 12px; color: #bbb; padding: 8px; }
     .refresh-btn { display: block; margin: 8px auto; padding: 8px 20px; background: none; border: 1px solid #ddd; border-radius: 20px; font-size: 13px; color: #666; cursor: pointer; }
   </style>
 </head>
@@ -76,7 +75,6 @@
 </div>
 
 <script>
-
 const FAVOURITE_STOPS = [
   { code: '50171', name: 'Zhong Shan Mall' },
   { code: '50179', name: 'Opp Zhongshan Mall' },
@@ -107,84 +105,74 @@ function formatMin(min) {
 }
 
 async function fetchStop(code) {
-  const res = await fetch(`/api/bus?code=${code}`);  );
+  const res = await fetch('/api/bus?code=' + code);
   const data = await res.json();
   return data.Services || [];
 }
 
 function renderArrivals(services) {
   if (!services || !services.length) return '<span class="no-data">No buses operating</span>';
-  return services.map(svc => {
+  return services.map(function(svc) {
     const arrivals = [svc.NextBus, svc.NextBus2, svc.NextBus3]
-      .map(b => b ? getMinutes(b.EstimatedArrival) : null)
-      .filter(m => m !== null && !isNaN(m));
-    const pills = arrivals.map((min, i) => `
-      <div class="pill ${min <= 1 ? 'arriving' : ''}">
-        <span class="pill-time">${formatMin(min)}</span>
-        <span class="pill-label">${i === 0 ? 'next' : i === 1 ? '2nd' : '3rd'}</span>
-      </div>`).join('');
-    return `
-      <div class="card">
-        <div class="card-header">
-          <span class="route-badge">${svc.ServiceNo}</span>
-          <span class="operator">${svc.Operator}</span>
-        </div>
-        <div class="arrivals">${pills || '<span class="no-data">No data</span>'}</div>
-      </div>`;
+      .map(function(b) { return b ? getMinutes(b.EstimatedArrival) : null; })
+      .filter(function(m) { return m !== null && !isNaN(m); });
+    const pills = arrivals.map(function(min, i) {
+      return '<div class="pill ' + (min <= 1 ? 'arriving' : '') + '">' +
+        '<span class="pill-time">' + formatMin(min) + '</span>' +
+        '<span class="pill-label">' + (i === 0 ? 'next' : i === 1 ? '2nd' : '3rd') + '</span>' +
+        '</div>';
+    }).join('');
+    return '<div class="card">' +
+      '<div class="card-header">' +
+      '<span class="route-badge">' + svc.ServiceNo + '</span>' +
+      '<span class="operator">' + svc.Operator + '</span>' +
+      '</div>' +
+      '<div class="arrivals">' + (pills || '<span class="no-data">No data</span>') + '</div>' +
+      '</div>';
   }).join('');
 }
 
-function renderMyBus(busNo, stopCode, stopName) {
+function renderMyBus(busNo, stopCode) {
   const services = stopData[stopCode] || [];
-  const svc = services.find(s => s.ServiceNo === busNo);
+  const svc = services.find(function(s) { return s.ServiceNo === busNo; });
   if (!svc) return '<span class="no-data">Not in service</span>';
   const arrivals = [svc.NextBus, svc.NextBus2, svc.NextBus3]
-    .map(b => b ? getMinutes(b.EstimatedArrival) : null)
-    .filter(m => m !== null && !isNaN(m));
+    .map(function(b) { return b ? getMinutes(b.EstimatedArrival) : null; })
+    .filter(function(m) { return m !== null && !isNaN(m); });
   if (!arrivals.length) return '<span class="no-data">No data</span>';
-  return arrivals.map((min, i) => `
-    <div class="pill ${min <= 1 ? 'arriving' : ''}">
-      <span class="pill-time">${formatMin(min)}</span>
-      <span class="pill-label">${i === 0 ? 'next' : i === 1 ? '2nd' : '3rd'}</span>
-    </div>`).join('');
+  return arrivals.map(function(min, i) {
+    return '<div class="pill ' + (min <= 1 ? 'arriving' : '') + '">' +
+      '<span class="pill-time">' + formatMin(min) + '</span>' +
+      '<span class="pill-label">' + (i === 0 ? 'next' : i === 1 ? '2nd' : '3rd') + '</span>' +
+      '</div>';
+  }).join('');
 }
 
 async function loadAll() {
   try {
-    const allCodes = [...new Set([
-      ...FAVOURITE_STOPS.map(s => s.code),
-      ...MY_BUSES.map(b => b.stopCode)
-    ])];
+    const allCodes = [];
+    FAVOURITE_STOPS.forEach(function(s) { if (allCodes.indexOf(s.code) === -1) allCodes.push(s.code); });
+    MY_BUSES.forEach(function(b) { if (allCodes.indexOf(b.stopCode) === -1) allCodes.push(b.stopCode); });
+
     const results = await Promise.all(allCodes.map(fetchStop));
-    allCodes.forEach((code, i) => { stopData[code] = results[i]; });
+    allCodes.forEach(function(code, i) { stopData[code] = results[i]; });
 
     const now = new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
     document.getElementById('updated').textContent = 'Updated ' + now;
 
     let stopsHtml = '';
-    FAVOURITE_STOPS.forEach(s => {
-      stopsHtml += `
-        <div class="stop-header">
-          <span class="stop-name">${s.name}</span>
-          <span class="stop-code">${s.code}</span>
-        </div>
-        ${renderArrivals(stopData[s.code])}`;
+    FAVOURITE_STOPS.forEach(function(s) {
+      stopsHtml += '<div class="stop-header"><span class="stop-name">' + s.name + '</span><span class="stop-code">' + s.code + '</span></div>';
+      stopsHtml += renderArrivals(stopData[s.code]);
     });
     document.getElementById('stopsContent').innerHTML = stopsHtml;
 
     let mybusHtml = '';
-    MY_BUSES.forEach(b => {
-      mybusHtml += `
-        <div class="card">
-          <div class="card-header">
-            <span class="route-badge">${b.busNo}</span>
-            <div style="margin-left:10px">
-              <div class="my-bus-label">${b.label}</div>
-              <div class="my-bus-stop">from ${b.stopName}</div>
-            </div>
-          </div>
-          <div class="arrivals">${renderMyBus(b.busNo, b.stopCode, b.stopName)}</div>
-        </div>`;
+    MY_BUSES.forEach(function(b) {
+      mybusHtml += '<div class="card"><div class="card-header"><span class="route-badge">' + b.busNo + '</span>' +
+        '<div style="margin-left:10px"><div class="my-bus-label">' + b.label + '</div>' +
+        '<div class="my-bus-stop">from ' + b.stopName + '</div></div></div>' +
+        '<div class="arrivals">' + renderMyBus(b.busNo, b.stopCode) + '</div></div>';
     });
     document.getElementById('mybusesContent').innerHTML = mybusHtml;
   } catch(e) {
@@ -202,22 +190,17 @@ async function searchStop() {
       document.getElementById('searchResults').innerHTML = '<div class="error">No buses found.</div>';
       return;
     }
-    const tempData = { [code]: services };
-    const original = stopData;
-    stopData = { ...stopData, ...tempData };
-    document.getElementById('searchResults').innerHTML = `
-      <div class="stop-header">
-        <span class="stop-name">Stop ${code}</span>
-      </div>
-      ${renderArrivals(services)}`;
-    stopData = original;
+    stopData[code] = services;
+    document.getElementById('searchResults').innerHTML =
+      '<div class="stop-header"><span class="stop-name">Stop ' + code + '</span></div>' +
+      renderArrivals(services);
   } catch(e) {
     document.getElementById('searchResults').innerHTML = '<div class="error">Could not fetch. Check connection.</div>';
   }
 }
 
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
+  document.querySelectorAll('.tab').forEach(function(t, i) {
     t.classList.toggle('active', (i === 0 && tab === 'stops') || (i === 1 && tab === 'mybuses'));
   });
   document.getElementById('tab-stops').classList.toggle('active', tab === 'stops');
